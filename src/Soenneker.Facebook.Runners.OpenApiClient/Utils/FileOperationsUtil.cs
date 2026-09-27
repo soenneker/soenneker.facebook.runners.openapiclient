@@ -41,12 +41,14 @@ public sealed class FileOperationsUtil(
             {
                 string upstream = Path.Combine(scratch, "meta");
                 if (!Regex.IsMatch(revision, @"^[A-Za-z0-9][A-Za-z0-9._/-]*$"))
-                    throw new ArgumentException("MetaRef must be a branch, tag, or commit using letters, digits, dots, underscores, slashes, or hyphens.");
+                    throw new ArgumentException(
+                        "MetaRef must be a branch, tag, or commit using letters, digits, dots, underscores, slashes, or hyphens.");
                 await git.Clone("https://github.com/facebook/facebook-business-sdk-codegen.git", upstream,
                     shallow: true, cancellationToken: cancellationToken);
                 await git.Run($"fetch --depth=1 origin {revision}", upstream, cancellationToken: cancellationToken);
                 await git.Run("checkout --detach FETCH_HEAD", upstream, cancellationToken: cancellationToken);
-                revision = string.Join("", await git.Run("rev-parse HEAD", upstream, cancellationToken: cancellationToken)).Trim();
+                revision = string.Join("",
+                    await git.Run("rev-parse HEAD", upstream, cancellationToken: cancellationToken)).Trim();
                 specsDirectory = Path.Combine(upstream, "api_specs", "specs");
             }
             else
@@ -57,12 +59,15 @@ public sealed class FileOperationsUtil(
 
             string? clientDirectory = configuration["Facebook:ClientDirectory"];
             bool local = !string.IsNullOrWhiteSpace(clientDirectory);
-            clientDirectory = local ? Path.GetFullPath(clientDirectory!) :
-                await git.CloneToTempDirectory("https://github.com/soenneker/soenneker.facebook.openapiclient", cancellationToken: cancellationToken);
+            clientDirectory = local
+                ? Path.GetFullPath(clientDirectory!)
+                : await git.CloneToTempDirectory("https://github.com/soenneker/soenneker.facebook.openapiclient",
+                    cancellationToken: cancellationToken);
             string projectDirectory = Path.Combine(clientDirectory, "src", Constants.Library);
             string project = Path.Combine(projectDirectory, Constants.Library + ".csproj");
             if (!await fileUtil.Exists(project, cancellationToken))
-                throw new InvalidOperationException($"Client project not found: {project}. Set Facebook:ClientDirectory to the scaffolded repository.");
+                throw new InvalidOperationException(
+                    $"Client project not found: {project}. Set Facebook:ClientDirectory to the scaffolded repository.");
 
             string documentPath = Path.Combine(clientDirectory, "openapi.json");
             MetaOpenApiConversionResult result = await converter.ConvertToFileAsync(specsDirectory, documentPath,
@@ -74,9 +79,11 @@ public sealed class FileOperationsUtil(
                     SourceRevision = revision
                 }, cancellationToken);
             logger.LogInformation("Converted Meta specs: {Schemas} schemas, {Paths} paths, {Diagnostics} diagnostics",
-                result.Document["components"]!["schemas"]!.AsObject().Count, result.Document["paths"]!.AsObject().Count, result.Diagnostics.Count);
+                result.Document["components"]!["schemas"]!.AsObject().Count, result.Document["paths"]!.AsObject().Count,
+                result.Diagnostics.Count);
             await fileUtil.Write(Path.Combine(clientDirectory, "generation-diagnostics.json"),
-                JsonSerializer.Serialize(result.Diagnostics, new JsonSerializerOptions { WriteIndented = true }), cancellationToken: cancellationToken);
+                JsonSerializer.Serialize(result.Diagnostics, new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken: cancellationToken);
 
             string fixedPath = Path.Combine(clientDirectory, "openapi.fixed.json");
             await fixer.Fix(documentPath, fixedPath, cancellationToken);
@@ -88,7 +95,8 @@ public sealed class FileOperationsUtil(
             string destination = Path.GetFullPath(Path.Combine(projectDirectory, "Generated"));
             if (Path.GetDirectoryName(destination) != Path.GetFullPath(projectDirectory))
                 throw new InvalidOperationException("Generated directory must remain inside the client project.");
-            if (await directoryUtil.Exists(destination, cancellationToken) && new DirectoryInfo(destination).LinkTarget is not null)
+            if (await directoryUtil.Exists(destination, cancellationToken) &&
+                new DirectoryInfo(destination).LinkTarget is not null)
                 throw new InvalidOperationException("The generated directory cannot be a link.");
             await directoryUtil.DeleteIfExists(destination, cancellationToken);
             await directoryUtil.CopyDirectory(generated, destination, cancellationToken: cancellationToken);
@@ -102,14 +110,19 @@ public sealed class FileOperationsUtil(
                 string token = EnvironmentUtil.GetVariableStrict("GH__TOKEN");
                 string name = EnvironmentUtil.GetVariableStrict("GIT__NAME");
                 string email = EnvironmentUtil.GetVariableStrict("GIT__EMAIL");
-                await git.CommitAndPush(clientDirectory, "Regenerate Facebook Graph API client from Meta specifications", token, name, email, cancellationToken);
+                await git.CommitAndPush(clientDirectory,
+                    "Regenerate Facebook Graph API client from Meta specifications", token, name, email,
+                    cancellationToken);
             }
+
             logger.LogInformation("Generated and built {Library} in {Directory}", Constants.Library, clientDirectory);
         }
         finally
         {
-            string expectedRoot = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (Path.GetFullPath(scratch).StartsWith(expectedRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            string expectedRoot = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) +
+                                  Path.DirectorySeparatorChar;
+            if (Path.GetFullPath(scratch).StartsWith(expectedRoot,
+                    OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             {
                 await directoryUtil.DeleteIfExists(scratch, CancellationToken.None);
             }
