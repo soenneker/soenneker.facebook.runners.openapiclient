@@ -2,6 +2,9 @@ using System;
 using System.Text.RegularExpressions;
 using System.IO;
 using System.Text.Json;
+using System.Collections.Generic;
+using System.Linq;
+using Soenneker.Facebook.Runners.OpenApiClient.Profiles;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -70,14 +73,16 @@ public sealed class FileOperationsUtil(
                     $"Client project not found: {project}. Set Facebook:ClientDirectory to the scaffolded repository.");
 
             string documentPath = Path.Combine(clientDirectory, "openapi.json");
-            MetaOpenApiConversionResult result = await converter.ConvertToFileAsync(specsDirectory, documentPath,
+            var specifications = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            foreach (string path in Directory.EnumerateFiles(specsDirectory, "*.json").Order(StringComparer.Ordinal))
+                specifications.Add(Path.GetFileNameWithoutExtension(path), await File.ReadAllTextAsync(path, cancellationToken));
+            MetaOpenApiConversionResult result = FacebookSpecificationProfile.Convert(converter, specifications,
                 new MetaOpenApiConverterOptions
                 {
                     GraphApiVersion = configuration["Facebook:GraphApiVersion"] ?? "v26.0",
                     Title = "Facebook Graph API",
-                    Profile = MetaOpenApiProfile.Facebook,
-                    SourceRevision = revision
-                }, cancellationToken);
+                }, revision, configuration.GetValue<bool>("Facebook:PublishingOnly"), cancellationToken);
+            await fileUtil.Write(documentPath, result.ToJson(), cancellationToken: cancellationToken);
             logger.LogInformation("Converted Meta specs: {Schemas} schemas, {Paths} paths, {Diagnostics} diagnostics",
                 result.Document["components"]!["schemas"]!.AsObject().Count, result.Document["paths"]!.AsObject().Count,
                 result.Diagnostics.Count);
